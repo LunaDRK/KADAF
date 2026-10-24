@@ -304,10 +304,20 @@ export default function GestionVacantesScreen({ navigation }: { navigation: any 
         .maybeSingle();
 
       if (error) {
-        console.error('Error al eliminar vacante:', error);
-        mostrarMensaje(`No se pudo eliminar la vacante. ${error.message}${error.code ? ` (Código: ${error.code})` : ''}`);
-        return;
-      }
+          if (error.code === '23503') {
+            mostrarMensaje(
+              'Esta vacante tiene postulaciones registradas. No se puede eliminar definitivamente. Puedes desactivarla para conservar el historial.'
+            );
+            setVacantePorEliminar(null);
+            return;
+          }
+        
+          console.error('Error al eliminar vacante:', error);
+          mostrarMensaje(
+            `No se pudo eliminar la vacante. ${error.message}`
+          );
+          return;
+        }        
 
       if (!data) {
         mostrarMensaje('Supabase no eliminó ninguna fila. Revisa la política DELETE de RLS para la tabla vacantes.');

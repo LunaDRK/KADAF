@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -7,10 +7,11 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
-  StyleSheet
-} from 'react-native';
-import { supabase } from '../services/supabase';
+  StyleSheet,
+} from "react-native";
+import { supabase } from "../services/supabase";
 
+//Definición de tipos para la estructura de props y analisis
 type Props = {
   candidatoId: string;
   vacanteId: string;
@@ -25,19 +26,23 @@ type Analisis = {
   summary: string;
 };
 
+// Componenete de la pantalla
 export default function PerfilCandidatoScreen({
   candidatoId,
   vacanteId,
   cvPath,
-  volver
+  volver,
 }: Props) {
+
+  //Estados para indicar si esta cargando o para guardar
   const [candidato, setCandidato] = useState<any>(null);
   const [vacante, setVacante] = useState<any>(null);
   const [analisis, setAnalisis] = useState<Analisis | null>(null);
   const [cargando, setCargando] = useState(true);
   const [analizando, setAnalizando] = useState(false);
-  const [errorAnalisis, setErrorAnalisis] = useState('');
+  const [errorAnalisis, setErrorAnalisis] = useState("");
 
+  //Cargamos el candidato con la vacante que solicito
   useEffect(() => {
     cargarDatos();
   }, [candidatoId, vacanteId]);
@@ -46,26 +51,31 @@ export default function PerfilCandidatoScreen({
     setCargando(true);
     setAnalisis(null);
 
+    // Realizamos las consultas a la base de datos para obtener los datos del candidato y la vacante
     const [respuestaCandidato, respuestaVacante] = await Promise.all([
       supabase
-        .from('candidatos')
-        .select('id, nombre_completo, email, telefono, educacion, experiencia, habilidades')
-        .eq('id', candidatoId)
+        .from("candidatos")
+        .select(
+          "id, nombre_completo, email, telefono, educacion, experiencia, habilidades",
+        )
+        .eq("id", candidatoId)
         .single(),
 
       supabase
-        .from('vacantes')
-        .select('id, titulo, empresa, salario, ubicacion, descripcion, requisitos, activa')
-        .eq('id', vacanteId)
-        .single()
+        .from("vacantes")
+        .select(
+          "id, titulo, empresa, salario, ubicacion, descripcion, requisitos, activa",
+        )
+        .eq("id", vacanteId)
+        .single(),
     ]);
 
     if (respuestaCandidato.error || respuestaVacante.error) {
       Alert.alert(
-        'Error',
+        "Error",
         respuestaCandidato.error?.message ||
           respuestaVacante.error?.message ||
-          'No se pudieron cargar los datos.'
+          "No se pudieron cargar los datos.",
       );
     } else {
       setCandidato(respuestaCandidato.data);
@@ -75,23 +85,25 @@ export default function PerfilCandidatoScreen({
     setCargando(false);
   };
 
+  //Funcion para acceder y abrir el cv
   const verCV = async () => {
     const { data, error } = await supabase.storage
-      .from('cv-postulaciones')
+      .from("cv-postulaciones")
       .createSignedUrl(cvPath, 60);
 
     if (error || !data?.signedUrl) {
-      Alert.alert('Error', 'No se pudo obtener el PDF.');
+      Alert.alert("Error", "No se pudo obtener el PDF.");
       return;
     }
 
     try {
       await Linking.openURL(data.signedUrl);
     } catch {
-      Alert.alert('Error', 'No se pudo abrir el CV.');
+      Alert.alert("Error", "No se pudo abrir el CV.");
     }
   };
 
+  //Funcion para analizar la compatibilidad del candidato con la vacante
   const analizarCompatibilidad = async () => {
     if (!candidato || !vacante) return;
 
@@ -103,60 +115,58 @@ export default function PerfilCandidatoScreen({
 
     const tieneRequisitos =
       !!vacante.descripcion?.trim() ||
-      (Array.isArray(vacante.requisitos) &&
-        vacante.requisitos.length > 0);
+      (Array.isArray(vacante.requisitos) && vacante.requisitos.length > 0);
 
     if (!tieneInformacion || !tieneRequisitos) {
       Alert.alert(
-        'Información incompleta',
-        'Se necesita información profesional del candidato y una descripción o requisitos de la vacante.'
+        "Información incompleta",
+        "Se necesita información profesional del candidato y una descripción o requisitos de la vacante.",
       );
       return;
     }
 
     setAnalizando(true);
     setAnalisis(null);
-    setErrorAnalisis('');
+    setErrorAnalisis("");
 
-    console.log('Iniciando análisis de compatibilidad');
+    console.log("Iniciando análisis de compatibilidad");
 
     try {
+      // Invocamos la función de Supabase para analizar al candidato con la vacante
       const { data, error } = await supabase.functions.invoke(
-        'analizar-candidato',
+        "analizar-candidato",
         {
           body: {
             candidato: {
               educacion: candidato.educacion,
               experiencia: candidato.experiencia,
-              habilidades: candidato.habilidades
+              habilidades: candidato.habilidades,
             },
             vacante: {
               titulo: vacante.titulo,
               empresa: vacante.empresa,
               descripcion: vacante.descripcion,
-              requisitos: vacante.requisitos
-            }
-          }
-        }
+              requisitos: vacante.requisitos,
+            },
+          },
+        },
       );
-    console.log('Respuesta de la IA:', data);
-    console.log('Error de la IA:', error);
+      console.log("Respuesta de la IA:", data);
+      console.log("Error de la IA:", error);
 
       if (error) {
-          const respuesta = (error as any).context;
-            
-          if (respuesta?.status) {
-            const detalle = await respuesta.text();
-        
-            console.log('Código HTTP:', respuesta.status);
-            console.log('Detalle del error:', detalle);
-        
-            throw new Error(
-              `Error ${respuesta.status}: ${detalle}`
-            );
-          }
-      
-          throw new Error(error.message);
+        const respuesta = (error as any).context;
+
+        if (respuesta?.status) {
+          const detalle = await respuesta.text();
+
+          console.log("Código HTTP:", respuesta.status);
+          console.log("Detalle del error:", detalle);
+
+          throw new Error(`Error ${respuesta.status}: ${detalle}`);
+        }
+
+        throw new Error(error.message);
       }
 
       if (data?.error) {
@@ -172,41 +182,43 @@ export default function PerfilCandidatoScreen({
         resultado.compatibility_score > 100 ||
         !Array.isArray(resultado.strengths) ||
         !Array.isArray(resultado.areas_to_evaluate) ||
-        typeof resultado.summary !== 'string'
+        typeof resultado.summary !== "string"
       ) {
-        throw new Error('La IA devolvió un resultado incorrecto.');
+        throw new Error("La IA devolvió un resultado incorrecto.");
       }
 
+      // Guardamos el resultado en la tabla "analisis_ia"
       const { error: errorGuardar } = await supabase
-        .from('analisis_ia')
+        .from("analisis_ia")
         .insert({
           candidato_id: candidatoId,
           vacante_id: vacanteId,
           puntuacion_compatibilidad: resultado.compatibility_score,
           fortalezas: resultado.strengths,
           areas_por_evaluar: resultado.areas_to_evaluate,
-          resumen: resultado.summary
+          resumen: resultado.summary,
         });
 
       if (errorGuardar) {
         throw new Error(
-          'Se generó el análisis, pero no se pudo guardar: ' +
-          errorGuardar.message
+          "Se generó el análisis, pero no se pudo guardar: " +
+            errorGuardar.message,
         );
       }
 
+      //Si se guarda correctamente, actualizamos el estado para mostrar el resultado
       setAnalisis(resultado);
-      Alert.alert('Listo', 'Análisis generado y guardado.');
+      Alert.alert("Listo", "Análisis generado y guardado.");
+
     } catch (error: any) {
-        console.error('Error completo del análisis:', error);
-        setErrorAnalisis(
-            error?.message || 'No se pudo realizar el análisis.'
-        );
+      console.error("Error completo del análisis:", error);
+      setErrorAnalisis(error?.message || "No se pudo realizar el análisis.");
     } finally {
       setAnalizando(false);
     }
   };
 
+  // Funcion para renderizar la pantalla de perfil del candidato
   if (cargando) {
     return (
       <View style={styles.cargando}>
@@ -216,6 +228,7 @@ export default function PerfilCandidatoScreen({
     );
   }
 
+  // Si no se encuentran los datos del candidato o la vacante, mostramos un mensaje de error
   if (!candidato || !vacante) {
     return (
       <View style={styles.cargando}>
@@ -227,6 +240,7 @@ export default function PerfilCandidatoScreen({
     );
   }
 
+  // Renderizamos la información del candidato, la vacante y el análisis de compatibilidad
   return (
     <ScrollView
       style={styles.pantalla}
@@ -247,12 +261,12 @@ export default function PerfilCandidatoScreen({
       <View style={styles.tarjeta}>
         <View style={styles.avatar}>
           <Text style={styles.avatarTexto}>
-            {candidato.nombre_completo?.charAt(0).toUpperCase() || 'C'}
+            {candidato.nombre_completo?.charAt(0).toUpperCase() || "C"}
           </Text>
         </View>
 
         <Text style={styles.nombre}>
-          {candidato.nombre_completo || 'Candidato'}
+          {candidato.nombre_completo || "Candidato"}
         </Text>
         <Text style={styles.dato}>{candidato.email}</Text>
         {!!candidato.telefono && (
@@ -275,31 +289,28 @@ export default function PerfilCandidatoScreen({
         )}
 
         <Text style={styles.subtituloSeccion}>Requisitos</Text>
-        {Array.isArray(vacante.requisitos) &&
-        vacante.requisitos.length > 0 ? (
+        {Array.isArray(vacante.requisitos) && vacante.requisitos.length > 0 ? (
           vacante.requisitos.map((requisito: string, i: number) => (
             <Text key={i} style={styles.contenido}>
               • {requisito}
             </Text>
           ))
         ) : (
-          <Text style={styles.contenido}>
-            No hay requisitos registrados.
-          </Text>
+          <Text style={styles.contenido}>No hay requisitos registrados.</Text>
         )}
       </View>
 
       <View style={styles.seccion}>
         <Text style={styles.tituloSeccion}>Formación académica</Text>
         <Text style={styles.contenido}>
-          {candidato.educacion || 'Sin información registrada.'}
+          {candidato.educacion || "Sin información registrada."}
         </Text>
       </View>
 
       <View style={styles.seccion}>
         <Text style={styles.tituloSeccion}>Experiencia profesional</Text>
         <Text style={styles.contenido}>
-          {candidato.experiencia || 'Sin información registrada.'}
+          {candidato.experiencia || "Sin información registrada."}
         </Text>
       </View>
 
@@ -313,16 +324,12 @@ export default function PerfilCandidatoScreen({
             </Text>
           ))
         ) : (
-          <Text style={styles.contenido}>
-            Sin habilidades registradas.
-          </Text>
+          <Text style={styles.contenido}>Sin habilidades registradas.</Text>
         )}
       </View>
 
       <View style={styles.seccion}>
-        <Text style={styles.tituloSeccion}>
-          Análisis de compatibilidad
-        </Text>
+        <Text style={styles.tituloSeccion}>Análisis de compatibilidad</Text>
 
         <Text style={styles.contenido}>
           Compara el perfil profesional con los requisitos de la vacante.
@@ -336,19 +343,24 @@ export default function PerfilCandidatoScreen({
           {analizando ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.textoBoton}>
-              Analizar compatibilidad
-            </Text>
+            <Text style={styles.textoBoton}>Analizar compatibilidad</Text>
           )}
         </TouchableOpacity>
         {analizando && (
-          <Text style={{ color: '#667085', marginTop: 10 }}> Consultando la inteligencia artificial... </Text>
+          <Text style={{ color: "#667085", marginTop: 10 }}>
+            {" "}
+            Consultando la inteligencia artificial...{" "}
+          </Text>
         )}
 
         {!!errorAnalisis && (
-          <Text style={{ color: '#DC2626', marginTop: 12 }}> Error: {errorAnalisis} </Text>
+          <Text style={{ color: "#DC2626", marginTop: 12 }}>
+            {" "}
+            Error: {errorAnalisis}{" "}
+          </Text>
         )}
 
+        
         {analisis && (
           <View style={styles.resultado}>
             <Text style={styles.tituloSeccion}>Compatibilidad</Text>
@@ -361,7 +373,7 @@ export default function PerfilCandidatoScreen({
               <View
                 style={[
                   styles.barraProgreso,
-                  { width: `${analisis.compatibility_score}%` }
+                  { width: `${analisis.compatibility_score}%` },
                 ]}
               />
             </View>
@@ -383,9 +395,8 @@ export default function PerfilCandidatoScreen({
             ))}
 
             <Text style={styles.aviso}>
-              Este resultado es orientativo. El reclutador debe
-              evaluar personalmente al candidato antes de tomar
-              decisiones.
+              Este resultado es orientativo. El reclutador debe evaluar
+              personalmente al candidato antes de tomar decisiones.
             </Text>
           </View>
         )}
@@ -395,125 +406,125 @@ export default function PerfilCandidatoScreen({
 }
 
 const styles = StyleSheet.create({
-  pantalla: { flex: 1, backgroundColor: '#F3F6FA' },
+  pantalla: { flex: 1, backgroundColor: "#F3F6FA" },
   contenidoPantalla: { paddingBottom: 28 },
   cargando: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     padding: 24,
-    gap: 12
+    gap: 12,
   },
   encabezado: {
-    backgroundColor: '#17365D',
+    backgroundColor: "#17365D",
     padding: 24,
-    paddingTop: 30
+    paddingTop: 30,
   },
-  volver: { color: '#FFFFFF', marginBottom: 16 },
-  marca: { color: '#4DD0C8', fontWeight: 'bold', fontSize: 16 },
+  volver: { color: "#FFFFFF", marginBottom: 16 },
+  marca: { color: "#4DD0C8", fontWeight: "bold", fontSize: 16 },
   titulo: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 25,
-    fontWeight: 'bold',
-    marginTop: 12
+    fontWeight: "bold",
+    marginTop: 12,
   },
-  subtitulo: { color: '#DCE6F1', marginTop: 6 },
+  subtitulo: { color: "#DCE6F1", marginTop: 6 },
   tarjeta: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     margin: 16,
     padding: 20,
     borderRadius: 14,
-    alignItems: 'center'
+    alignItems: "center",
   },
   avatar: {
     width: 68,
     height: 68,
     borderRadius: 34,
-    backgroundColor: '#D8F1EF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12
+    backgroundColor: "#D8F1EF",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
   },
   avatarTexto: {
-    color: '#087E8B',
+    color: "#087E8B",
     fontSize: 30,
-    fontWeight: 'bold'
+    fontWeight: "bold",
   },
   nombre: {
     fontSize: 21,
-    fontWeight: 'bold',
-    color: '#17365D',
-    textAlign: 'center'
+    fontWeight: "bold",
+    color: "#17365D",
+    textAlign: "center",
   },
-  dato: { color: '#667085', marginTop: 6 },
+  dato: { color: "#667085", marginTop: 6 },
   botonCV: {
-    backgroundColor: '#087E8B',
+    backgroundColor: "#087E8B",
     padding: 12,
     borderRadius: 10,
     marginTop: 16,
-    alignItems: 'center'
+    alignItems: "center",
   },
   seccion: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     marginHorizontal: 16,
     marginBottom: 12,
     padding: 18,
-    borderRadius: 14
+    borderRadius: 14,
   },
   tituloSeccion: {
     fontSize: 17,
-    fontWeight: 'bold',
-    color: '#17365D',
-    marginBottom: 10
+    fontWeight: "bold",
+    color: "#17365D",
+    marginBottom: 10,
   },
   subtituloSeccion: {
     fontSize: 15,
-    fontWeight: 'bold',
-    color: '#17365D',
-    marginTop: 14
+    fontWeight: "bold",
+    color: "#17365D",
+    marginTop: 14,
   },
   nombreVacante: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#087E8B'
+    fontWeight: "bold",
+    color: "#087E8B",
   },
   contenido: {
-    color: '#475467',
+    color: "#475467",
     fontSize: 15,
     lineHeight: 23,
-    marginTop: 4
+    marginTop: 4,
   },
   boton: {
-    backgroundColor: '#087E8B',
+    backgroundColor: "#087E8B",
     padding: 14,
     borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 16
+    alignItems: "center",
+    marginTop: 16,
   },
-  textoBoton: { color: '#FFFFFF', fontWeight: 'bold' },
+  textoBoton: { color: "#FFFFFF", fontWeight: "bold" },
   deshabilitado: { opacity: 0.6 },
   resultado: {
     marginTop: 20,
     borderTopWidth: 1,
-    borderTopColor: '#EAECF0',
-    paddingTop: 16
+    borderTopColor: "#EAECF0",
+    paddingTop: 16,
   },
   puntuacion: {
-    color: '#087E8B',
+    color: "#087E8B",
     fontSize: 36,
-    fontWeight: 'bold',
-    marginBottom: 10
+    fontWeight: "bold",
+    marginBottom: 10,
   },
   barraFondo: {
     height: 9,
     borderRadius: 8,
-    backgroundColor: '#E4E7EC',
-    overflow: 'hidden',
-    marginBottom: 14
+    backgroundColor: "#E4E7EC",
+    overflow: "hidden",
+    marginBottom: 14,
   },
   barraProgreso: {
-    height: '100%',
-    backgroundColor: '#087E8B'
+    height: "100%",
+    backgroundColor: "#087E8B",
   },
-  aviso: { color: '#667085', fontSize: 12, marginTop: 16 }
+  aviso: { color: "#667085", fontSize: 12, marginTop: 16 },
 });
